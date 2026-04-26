@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Балықтар мен Балдырлар - Ойын</title>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; height: 100%; font-family: 'Arial', sans-serif; touch-action: none; }
+        
+        .game-world {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to bottom, #0093E9 0%, #80D0C7 70%, #edc9af 70%, #c2b280 100%);
+        }
+
+        /* Көпіршіктер */
+        .bubble { position: absolute; background: rgba(255, 255, 255, 0.4); border-radius: 50%; bottom: 30%; animation: rise 6s infinite ease-in; pointer-events: none; }
+        @keyframes rise { 0% { transform: translateY(0); opacity: 0.8; } 100% { transform: translateY(-100vh); opacity: 0; } }
+        
+        /* Шелектер - Экранға сыйдыру үшін түзетілді */
+        .bucket-container { 
+            position: absolute; 
+            bottom: 80px; /* Батырмалардан жоғары көтерілді */
+            width: 100%; 
+            display: flex; 
+            justify-content: space-evenly; 
+            z-index: 5; 
+            pointer-events: none; 
+        }
+        .bucket { 
+            width: 220px; /* Оңтайлы көлем */
+            text-align: center; 
+        }
+        .bucket img { 
+            width: 100%; 
+            height: auto; 
+            display: block;
+            margin: 0 auto;
+        }
+        .bucket-label { 
+            background: rgba(255,255,255,0.8); 
+            border-radius: 8px; 
+            padding: 4px 8px; 
+            font-weight: bold; 
+            margin-top: 2px; 
+            font-size: 16px;
+            display: inline-block;
+        }
+
+        /* Заттар */
+        .item { position: absolute; cursor: move; z-index: 10; touch-action: none; user-select: none; }
+        
+        /* Төменгі навигация */
+        .nav-bar { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 100; }
+        .btn { padding: 8px 20px; border-radius: 20px; border: 2px solid #fff; background: #ffcc00; font-weight: bold; cursor: pointer; box-shadow: 0 4px #b38f00; }
+        
+        #message { position: absolute; top: 15%; width: 100%; text-align: center; font-size: 28px; color: white; font-weight: bold; text-shadow: 2px 2px 5px black; display: none; z-index: 200; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="game-world" id="world">
+    <div id="bubbles"></div>
+    <div id="message">ЕНДІ БАЛДЫРЛАРДЫ ЖИНА!</div>
+
+    <div class="bucket-container">
+        <div class="bucket" id="area-big">
+            <img src="kyzyl_shelek.png" alt="Қызыл">
+            <div class="bucket-label">Үлкен / Ұзын</div>
+        </div>
+        <div class="bucket" id="area-small">
+            <img src="kok_shelek.png" alt="Көк">
+            <div class="bucket-label">Кіші / Қысқа</div>
+        </div>
+    </div>
+
+    <div class="nav-bar">
+        <button class="btn" onclick="window.location.href='page2.html'">⬅</button>
+        <button class="btn" onclick="location.reload()">🔄</button>
+        <button class="btn" onclick="window.location.href='page4.html'">➡</button>
+    </div>
+</div>
+
+<audio id="snd-win" src="durys.mp3"></audio>
+<audio id="snd-error" src="kate.mp3"></audio>
+
+<script>
+    const world = document.getElementById('world');
+    const areaBig = document.getElementById('area-big');
+    const areaSmall = document.getElementById('area-small');
+    const message = document.getElementById('message');
+
+    function playSound(type) {
+        const s = (type === 'win') ? document.getElementById('snd-win') : document.getElementById('snd-error');
+        if (s) {
+            s.currentTime = 0;
+            s.play().catch(e => console.log("Дыбыс қатесі"));
+        }
+    }
+
+    // Көпіршіктер
+    for (let i = 0; i < 15; i++) {
+        const b = document.createElement('div');
+        b.className = 'bubble';
+        const s = Math.random() * 25 + 10 + 'px';
+        b.style.width = s; b.style.height = s;
+        b.style.left = Math.random() * 100 + 'vw';
+        b.style.animationDelay = Math.random() * 5 + 's';
+        document.getElementById('bubbles').appendChild(b);
+    }
+
+    let currentStage = 'fish'; 
+
+    function createItems(type) {
+        let count = (type === 'fish') ? 5 : 4;
+        let configs = (type === 'fish') ? 
+            [{t: 'big', img: 'ulken_balyk.png', w: 120}, {t: 'small', img: 'kishi_balyk.png', w: 70}] :
+            [{t: 'big', img: 'uzun_baldyr.png', w: 50, h: 180}, {t: 'small', img: 'kyska_baldyr.png', w: 40, h: 90}];
+
+        for (let i = 0; i < count * 2; i++) {
+            const c = i < count ? configs[0] : configs[1];
+            const el = document.createElement('img');
+            el.src = c.img;
+            el.className = 'item';
+            el.style.width = c.w + 'px';
+            if(c.h) el.style.height = c.h + 'px';
+            el.dataset.target = c.t;
+            
+            let posX = Math.random() * 70 + 10;
+            let posY = Math.random() * 30 + 10; // Суреттерді жоғарырақ шығару
+            el.style.left = posX + "vw";
+            el.style.top = posY + "vh";
+
+            if(type === 'fish') {
+                animateFish(el, posX, posY);
+            }
+            makeDraggable(el);
+            world.appendChild(el);
+        }
+    }
+
+    function animateFish(f, posX, posY) {
+        let angle = Math.random() * Math.PI * 2;
+        let speed = 0.25; 
+        f.dataset.moving = "true";
+
+        function step() {
+            if (f.dataset.moving === "true") {
+                angle += (Math.random() - 0.5) * 0.02;
+                posX += Math.cos(angle) * speed;
+                posY += Math.sin(angle) * (speed / 2);
+
+                if (posX < 5 || posX > 85) angle = Math.PI - angle;
+                if (posY < 5 || posY > 45) angle = -angle; // Жоғарғы бөлікте ғана жүзу
+
+                f.style.left = posX + "vw";
+                f.style.top = posY + "vh";
+                f.style.transform = `scaleX(${Math.cos(angle) > 0 ? 1 : -1})`;
+                requestAnimationFrame(step);
+            }
+        }
+        step();
+    }
+
+    function makeDraggable(el) {
+        let isDragged = false;
+        el.onpointerdown = (e) => {
+            isDragged = true;
+            el.dataset.moving = "false";
+            el.setPointerCapture(e.pointerId);
+            el.style.zIndex = 1000;
+        };
+        el.onpointermove = (e) => {
+            if (isDragged) {
+                el.style.left = (e.clientX - el.offsetWidth / 2) + "px";
+                el.style.top = (e.clientY - el.offsetHeight / 2) + "px";
+            }
+        };
+        el.onpointerup = (e) => {
+            isDragged = false;
+            checkDrop(el, e.clientX, e.clientY);
+        };
+    }
+
+    function checkDrop(el, x, y) {
+        const bigR = areaBig.getBoundingClientRect();
+        const smallR = areaSmall.getBoundingClientRect();
+        const target = el.dataset.target;
+
+        const overBig = (x > bigR.left && x < bigR.right && y > bigR.top && y < bigR.bottom);
+        const overSmall = (x > smallR.left && x < smallR.right && y > smallR.top && y < smallR.bottom);
+
+        if (overBig && target === 'big') {
+            el.remove(); playSound('win'); checkNextStage();
+        } 
+        else if (overSmall && target === 'small') {
+            el.remove(); playSound('win'); checkNextStage();
+        } 
+        else if (overBig || overSmall) {
+            playSound('error'); resetItem(el);
+        } else {
+            resetItem(el);
+        }
+    }
+
+    function resetItem(el) {
+        el.dataset.moving = (currentStage === 'fish') ? "true" : "false";
+        el.style.left = (Math.random() * 70 + 10) + "vw";
+        el.style.top = (Math.random() * 30 + 10) + "vh";
+        
+        if(currentStage === 'fish') {
+            animateFish(el, parseFloat(el.style.left), parseFloat(el.style.top));
+        }
+    }
+
+    function checkNextStage() {
+        if (document.querySelectorAll('.item').length === 0) {
+            if (currentStage === 'fish') {
+                currentStage = 'algae';
+                message.style.display = 'block';
+                setTimeout(() => { message.style.display = 'none'; createItems('algae'); }, 2000);
+            } else {
+                message.innerText = "ЖАРАЙСЫҢ!"; message.style.display = 'block';
+            }
+        }
+    }
+
+    createItems('fish');
+</script>
+</body>
+</html>

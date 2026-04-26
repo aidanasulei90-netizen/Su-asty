@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <title>Ақылды Шаян - Page 2</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; font-family: 'Arial', sans-serif;
+        }
+
+        #game-board {
+            width: 100vw; height: 100vh;
+            background: url('sea_bg.jpg') no-repeat center; 
+            background-size: cover;
+            position: relative;
+        }
+
+        #crab { 
+            width: 250px; 
+            position: absolute; 
+            bottom: 280px; left: 5%; 
+            transition: all 1s ease-in-out; 
+            z-index: 10; 
+        }
+
+        /* Жеңіс секіруі */
+        @keyframes victoryJump {
+            0%, 100% { transform: translateY(0) scale(1.2); }
+            50% { transform: translateY(-150px) scale(1.4); }
+        }
+        .jump { animation: victoryJump 0.6s infinite !important; }
+
+        .stone-path { 
+            position: absolute; bottom: 280px; left: 25%; width: 65%; 
+            display: flex; justify-content: space-between; z-index: 5;
+        }
+
+        .stone { 
+            width: 160px; height: 110px; 
+            background: #7f8c8d; border-radius: 50% 50% 45% 45%;
+            box-shadow: inset -10px -10px 20px #2c3e50, 0 10px 20px rgba(0,0,0,0.4); 
+            transition: 0.5s; 
+        }
+        .stone.broken { transform: scale(0); opacity: 0; }
+
+        #memory-container {
+            position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95); padding: 20px 40px; border-radius: 40px;
+            display: none; align-items: center; gap: 20px; z-index: 100;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4); border: 4px solid #3498db;
+        }
+        #memory-zone img { width: 90px; height: 90px; }
+
+        .bottom-ui {
+            position: absolute; bottom: 30px; width: 100%;
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+        }
+
+        #shapes-panel {
+            width: 90%; height: 150px; 
+            background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(15px);
+            display: flex; justify-content: center; align-items: center; gap: 20px;
+            border-radius: 75px; border: 3px solid rgba(255,255,255,0.4);
+        }
+
+        .shape-btn { 
+            width: 100px; height: 100px; cursor: pointer; border-radius: 20px;
+            background: #3498db; display: flex; align-items: center; justify-content: center;
+            transition: 0.3s; border: 4px solid white;
+        }
+        .shape-btn img { width: 75px; height: 75px; filter: brightness(0) invert(1); }
+        .shape-btn.active { background: #e74c3c !important; transform: scale(1.1); }
+
+        .controls { display: flex; gap: 15px; }
+        .btn { padding: 12px 30px; border: none; border-radius: 20px; cursor: pointer; color: white; font-weight: bold; font-size: 20px; }
+    </style>
+</head>
+<body>
+
+<div id="game-board">
+    <div id="memory-container">
+        <div id="memory-zone"></div>
+        <button onclick="hideMemory()" style="cursor:pointer; border-radius:50%; border:none; background:#e74c3c; color:white; font-size:24px; width:50px; height:50px; margin-left:20px;">×</button>
+    </div>
+
+    <img src="crab.png" id="crab">
+    
+    <div class="stone-path">
+        <div class="stone" id="stone1"></div>
+        <div class="stone" id="stone2"></div>
+        <div class="stone" id="stone3"></div>
+    </div>
+
+    <div class="bottom-ui">
+        <div id="shapes-panel"></div>
+        <div class="controls">
+            <button class="btn" style="background:#e67e22" onclick="window.location.href='index.html'">⬅</button>
+            <button class="btn" style="background:#3498db" onclick="restartGame()">🔄</button>
+            <button class="btn" style="background:#27ae60; font-size: 24px;" onclick="startRound()">▶ БАСТАУ</button>
+            <button class="btn" style="background:#9b59b6" onclick="window.location.href='page3.html'">➡</button>
+        </div>
+    </div>
+</div>
+
+<audio id="sound-correct" src="correct.mp3"></audio>
+<audio id="sound-wrong" src="wrong.mp3"></audio>
+
+<script>
+    const allShapes = [
+        {id: 's1', src: 'red_circle.png'}, {id: 's2', src: 'yellow_tri.png'},
+        {id: 's3', src: 'blue_square.png'}, {id: 's4', src: 'green_oval.png'},
+        {id: 's5', src: 'red_rhomb.png'}, {id: 's6', src: 'blue_star.png'}
+    ];
+
+    let currentRound = 1;
+    let targetPattern = [];
+    let clickCount = 0;
+
+    function renderPanel() {
+        const panel = document.getElementById('shapes-panel');
+        panel.innerHTML = '';
+        allShapes.forEach(shape => {
+            const div = document.createElement('div');
+            div.className = 'shape-btn';
+            div.innerHTML = `<img src="${shape.src}">`;
+            div.onclick = () => checkClick(shape.id, div);
+            panel.appendChild(div);
+        });
+    }
+
+    function startRound() {
+        const crab = document.getElementById('crab');
+        if (currentRound > 3) return;
+        crab.classList.remove('jump'); 
+        clickCount = 0;
+        document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+        
+        targetPattern = [...allShapes].sort(() => Math.random() - 0.5).slice(0, 3);
+        const zone = document.getElementById('memory-zone');
+        zone.innerHTML = targetPattern.map(s => `<img src="${s.src}">`).join('');
+        document.getElementById('memory-container').style.display = 'flex';
+        renderPanel();
+    }
+
+    function hideMemory() {
+        document.getElementById('memory-container').style.display = 'none';
+    }
+
+    function checkClick(id, element) {
+        if (document.getElementById('memory-container').style.display === 'flex') return;
+
+        if (id === targetPattern[clickCount].id) {
+            element.classList.add('active');
+            clickCount++;
+            
+            // Тек 3-інші дұрыс басқанда дыбыс шығады
+            if (clickCount === 3) {
+                document.getElementById('sound-correct').play().catch(()=>{});
+                setTimeout(nextStep, 600);
+            }
+        } else {
+            document.getElementById('sound-wrong').play().catch(()=>{});
+            alert("Қате реттілік! Қайта көрейік.");
+            startRound();
+        }
+    }
+
+    function nextStep() {
+        const stone = document.getElementById('stone' + currentRound);
+        if (stone) stone.classList.add('broken');
+
+        const crab = document.getElementById('crab');
+        let movePositions = [35, 55, 75]; 
+        crab.style.left = movePositions[currentRound - 1] + "%";
+
+        setTimeout(() => {
+            if (currentRound < 3) {
+                currentRound++;
+                startRound();
+            } else {
+                victoryDance();
+            }
+        }, 1000);
+    }
+
+    function victoryDance() {
+        const crab = document.getElementById('crab');
+        // Ортаға келу
+        crab.style.left = "50%";
+        crab.style.transform = "translateX(-50%)";
+        
+        setTimeout(() => {
+            crab.classList.add('jump'); 
+            var duration = 10 * 1000;
+            var end = Date.now() + duration;
+
+            (function frame() {
+                confetti({ particleCount: 7, angle: 60, spread: 55, origin: { x: 0 } });
+                confetti({ particleCount: 7, angle: 120, spread: 55, origin: { x: 1 } });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+        }, 1000);
+    }
+
+    function restartGame() {
+        location.reload();
+    }
+
+    renderPanel();
+</script>
+</body>
+</html>
